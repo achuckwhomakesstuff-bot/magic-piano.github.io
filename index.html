@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magic Piano</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden;
+            background: #000;
+            height: 100vh;
+        }
+
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 10000;
+        }
+
+        #loading h2 {
+            color: #fff;
+            font-size: 2em;
+            margin-bottom: 20px;
+            letter-spacing: 4px;
+        }
+
+        .loader {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.1);
+            border-top: 5px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #app {
+            display: none;
+            width: 100%;
+            height: 100vh;
+            flex-direction: column;
+        }
+
+        #app.loaded {
+            display: flex;
+        }
+
+        .header {
+            padding: 15px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.95);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            font-size: 1.8em;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+            letter-spacing: 4px;
+            font-weight: 900;
+        }
+
+        .score {
+            font-size: 0.9em;
+            color: #fff;
+            margin-top: 8px;
+            font-weight: 400;
+            letter-spacing: 2px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .btn {
+            padding: 8px 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+
+        .game-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: #000;
+            clip-path: inset(0);
+        }
+
+        .note-lane {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            border-left: 1px solid rgba(255, 255, 255, 0.02);
+            overflow: hidden;
+        }
+
+        .note {
+            position: absolute;
+            width: calc(100% - 4px);
+            left: 2px;
+            height: 100px;
+            border-radius: 8px;
+            animation: fall linear;
+            will-change: transform;
+            transform: translateZ(0);
+        }
+
+        .note-inner {
+            width: 100%;
+            height: 100%;
+            border-radius: 6px;
+            will-change: transform;
+        }
+
+        .sparkle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: white;
+            border-radius: 50%;
+            animation: sparkle-move linear infinite;
+            will-change: transform, opacity;
+        }
+
+        @keyframes sparkle-move {
+            0%, 100% { opacity: 0; transform: translateY(0); }
+            50% { opacity: 1; }
+            100% { transform: translateY(-100px); }
+        }
+
+        @keyframes fall {
+            from { top: -150px; }
+            to { top: calc(100vh + 150px); }
+        }
+
+        .piano {
+            position: relative;
+            height: 200px;
+            background: #000;
+            border-top: 2px solid #222;
+            display: flex;
+            padding: 0 10px;
+        }
+
+        .white-key {
+            flex: 1;
+            background: linear-gradient(to bottom, #fff, #e8e8e8);
+            border: 1px solid #000;
+            border-radius: 0 0 4px 4px;
+            cursor: pointer;
+            transition: transform 0.05s ease;
+            position: relative;
+            box-shadow: inset 0 -5px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .white-key.active {
+            background: linear-gradient(to bottom, #ddd, #ccc);
+            transform: translateY(2px);
+        }
+
+        .black-key {
+            position: absolute;
+            width: 12px;
+            height: 120px;
+            background: linear-gradient(to bottom, #222, #000);
+            border-radius: 0 0 3px 3px;
+            cursor: pointer;
+            transition: transform 0.05s ease;
+            z-index: 10;
+            box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
+        }
+
+        .black-key.active {
+            background: linear-gradient(to bottom, #111, #000);
+            transform: translateY(2px);
+        }
+
+        .particle {
+            position: absolute;
+            pointer-events: none;
+            width: 3px;
+            height: 3px;
+            border-radius: 50%;
+            animation: particle-burst 0.5s ease-out forwards;
+        }
+
+        @keyframes particle-burst {
+            to {
+                transform: translate(var(--tx), var(--ty)) scale(0);
+                opacity: 0;
+            }
+        }
+
+        .glow-effect {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 250px;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center bottom, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <h2>LOADING MAGIC PIANO</h2>
+        <div class="loader"></div>
+    </div>
+
+    <div id="app">
+        <div class="header">
+            <h1>MAGIC PIANO</h1>
+            <div class="score">SCORE: <span id="score">0</span> | COMBO: <span id="combo">0</span></div>
+            <div class="controls">
+                <button class="btn" id="startBtn">START</button>
+                <button class="btn" id="pauseBtn">PAUSE</button>
+                <input type="file" id="midiFile" accept=".mid,.midi" style="display: none;">
+                <button class="btn" id="uploadBtn">UPLOAD MIDI</button>
+            </div>
+            <div id="songInfo" style="color: #fff; margin-top: 10px; font-size: 0.8em; letter-spacing: 1px;"></div>
+        </div>
+
+        <div class="game-container" id="gameContainer">
+            <div class="glow-effect"></div>
+        </div>
+
+        <div class="piano" id="piano"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.28/build/Midi.js"></script>
+    <script>
+        // Piano configuration
+        const pianoKeys = [];
+        const midiNoteToKeyIndex = {};
+        
+        function generatePianoKeys() {
+            for (let i = 0; i < 88; i++) {
+                const midiNote = i + 21;
+                const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                const noteIndex = (midiNote - 12) % 12;
+                const octave = Math.floor((midiNote - 12) / 12);
+                const noteName = noteNames[noteIndex];
+                const isBlack = noteName.includes('#');
+                const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
+                
+                pianoKeys.push({
+                    noteName, octave, frequency, isBlack, index: i, midiNote
+                });
+                midiNoteToKeyIndex[midiNote] = i;
+            }
+        }
+
+        generatePianoKeys();
+
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let score = 0, combo = 0, gameRunning = false, gamePaused = false;
+        let noteSpeed = 3000, spawnInterval = 600, spawnTimer;
+        let lanes = [], whiteKeys = [], blackKeys = [];
+        let midiMode = false, midiNotes = [], midiStartTime = 0, currentMidiIndex = 0;
+
+        const noteColors = ['#00ffff', '#ff00ff', '#ffff00', '#00ff00', '#ff0080', '#0080ff', '#ff8000', '#80ff00'];
+
+        function initPiano() {
+            const piano = document.getElementById('piano');
+            const gameContainer = document.getElementById('gameContainer');
+            const whiteKeyWidth = (window.innerWidth - 20) / 52;
+            let whiteKeyPosition = 0;
+            const whiteKeyIndices = [];
+
+            pianoKeys.forEach((key, index) => {
+                if (!key.isBlack) {
+                    const whiteKey = document.createElement('div');
+                    whiteKey.className = 'white-key';
+                    whiteKey.style.width = whiteKeyWidth + 'px';
+                    whiteKey.dataset.index = index;
+                    piano.appendChild(whiteKey);
+                    whiteKeys.push(whiteKey);
+                    whiteKeyIndices[index] = whiteKeyPosition;
+
+                    const lane = document.createElement('div');
+                    lane.className = 'note-lane';
+                    lane.style.left = (10 + whiteKeyPosition * whiteKeyWidth) + 'px';
+                    lane.style.width = whiteKeyWidth + 'px';
+                    lane.dataset.index = index;
+                    gameContainer.appendChild(lane);
+                    lanes[index] = lane;
+                    whiteKeyPosition++;
+                }
+            });
+
+            pianoKeys.forEach((key, index) => {
+                if (key.isBlack) {
+                    let leftWhiteIndex = index - 1;
+                    while (leftWhiteIndex >= 0 && pianoKeys[leftWhiteIndex].isBlack) leftWhiteIndex--;
+                    
+                    if (leftWhiteIndex >= 0 && whiteKeyIndices[leftWhiteIndex] !== undefined) {
+                        const blackKey = document.createElement('div');
+                        blackKey.className = 'black-key';
+                        const whitePos = whiteKeyIndices[leftWhiteIndex];
+                        const leftPosition = 10 + (whitePos + 0.75) * whiteKeyWidth - 6;
+                        blackKey.style.left = leftPosition + 'px';
+                        blackKey.dataset.index = index;
+                        piano.appendChild(blackKey);
+                        blackKeys.push(blackKey);
+
+                        const lane = document.createElement('div');
+                        lane.className = 'note-lane';
+                        lane.style.left = leftPosition + 'px';
+                        lane.style.width = '12px';
+                        lane.dataset.index = index;
+                        lane.style.zIndex = '5';
+                        gameContainer.appendChild(lane);
+                        lanes[index] = lane;
+                    }
+                }
+            });
+        }
+
+        function playSound(frequency) {
+            try {
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                osc.frequency.value = frequency;
+                osc.type = 'triangle';
+                
+                // Make lower notes louder (inverse relationship with frequency)
+                // Lower frequencies (like 27.5 Hz for A0) get more gain
+                const normalizedGain = Math.min(0.25, 0.08 * (440 / frequency));
+                
+                gain.gain.setValueAtTime(normalizedGain, audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
+                osc.start();
+                osc.stop(audioContext.currentTime + 1);
+            } catch(e) {}
+        }
+
+        function createSparkles(noteElement, color) {
+            for (let i = 0; i < 2; i++) { // Reduced from 3 to 2
+                const sparkle = document.createElement('div');
+                sparkle.className = 'sparkle';
+                sparkle.style.left = (40 + Math.random() * 20) + '%';
+                sparkle.style.top = (40 + Math.random() * 20) + '%';
+                sparkle.style.animationDelay = Math.random() + 's';
+                sparkle.style.animationDuration = '1.5s'; // Fixed duration
+                sparkle.style.color = color;
+                noteElement.appendChild(sparkle);
+            }
+        }
+
+        function createParticles(x, y, color) {
+            // Only create particles if they're within the game container area
+            const headerHeight = document.querySelector('.header').offsetHeight;
+            if (y < headerHeight) return; // Don't create particles above the game area
+            
+            for (let i = 0; i < 4; i++) { // Reduced from 6 to 4
+                const p = document.createElement('div');
+                p.className = 'particle';
+                p.style.left = x + 'px';
+                p.style.top = y + 'px';
+                p.style.background = color;
+                p.style.boxShadow = `0 0 6px ${color}`;
+                p.style.position = 'fixed';
+                p.style.zIndex = '50';
+                const angle = (Math.PI * 2 * i) / 4;
+                const distance = 20 + Math.random() * 20; // Smaller distance
+                p.style.setProperty('--tx', Math.cos(angle) * distance + 'px');
+                p.style.setProperty('--ty', Math.sin(angle) * distance + 'px');
+                document.body.appendChild(p);
+                setTimeout(() => p.remove(), 400); // Faster removal (was 500)
+            }
+        }
+
+        function spawnNote(keyIndex = null) {
+            if (!gameRunning || gamePaused) return;
+            if (keyIndex === null) keyIndex = Math.floor(Math.random() * pianoKeys.length);
+            
+            const lane = lanes[keyIndex];
+            if (!lane) {
+                console.warn(`⚠️ Lane ${keyIndex} not found!`);
+                return;
+            }
+            
+            const note = document.createElement('div');
+            note.className = 'note';
+            note.style.animationDuration = noteSpeed + 'ms';
+            note.dataset.keyIndex = keyIndex;
+            
+            const color = noteColors[keyIndex % noteColors.length];
+            const noteInner = document.createElement('div');
+            noteInner.className = 'note-inner';
+            noteInner.style.background = `radial-gradient(ellipse at center, ${color}, transparent)`;
+            noteInner.style.boxShadow = `0 0 20px ${color}, inset 0 0 10px ${color}`;
+            
+            note.appendChild(noteInner);
+            createSparkles(noteInner, color);
+            lane.appendChild(note);
+
+            // Delete note after it goes off screen
+            const removeTimeout = setTimeout(() => {
+                if (note.parentNode) {
+                    note.remove();
+                    if (!midiMode) {
+                        combo = 0;
+                        document.getElementById('combo').textContent = combo;
+                    }
+                }
+            }, noteSpeed + 500);
+            
+            scheduledTimeouts.push(removeTimeout);
+            return note; // Return the note element
+        }
+
+        function isInHitZone(note) {
+            const rect = note.getBoundingClientRect();
+            return rect.top >= window.innerHeight - 400 && rect.top <= window.innerHeight - 200;
+        }
+
+        function handleKeyPress(keyIndex, auto = false) {
+            if (keyIndex < 0 || keyIndex >= pianoKeys.length) return;
+            const key = pianoKeys[keyIndex];
+            
+            const allKeys = [...whiteKeys, ...blackKeys];
+            const pianoKey = allKeys.find(k => parseInt(k.dataset.index) === keyIndex);
+            if (pianoKey) {
+                pianoKey.classList.add('active');
+                setTimeout(() => pianoKey.classList.remove('active'), 100);
+            }
+
+            playSound(key.frequency);
+
+            if (!auto) {
+                const lane = lanes[keyIndex];
+                if (!lane) return;
+                const notes = lane.querySelectorAll('.note');
+                let hit = false;
+                notes.forEach(note => {
+                    if (isInHitZone(note)) {
+                        hit = true;
+                        score += 10 + (combo * 5);
+                        combo++;
+                        document.getElementById('score').textContent = score;
+                        document.getElementById('combo').textContent = combo;
+                        const rect = note.getBoundingClientRect();
+                        createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, noteColors[keyIndex % noteColors.length]);
+                        note.remove();
+                    }
+                });
+                if (!hit && gameRunning) {
+                    combo = 0;
+                    document.getElementById('combo').textContent = combo;
+                }
+            }
+        }
+
+        document.getElementById('piano').addEventListener('click', e => {
+            const pianoKey = e.target.closest('.white-key, .black-key');
+            if (pianoKey) handleKeyPress(parseInt(pianoKey.dataset.index), midiMode);
+        });
+
+        function parseMIDI(arrayBuffer) {
+            try {
+                const midi = new Midi(arrayBuffer);
+                const notes = [];
+                console.log('==========================================');
+                console.log('MIDI FILE:', midi.name);
+                console.log('Total tracks:', midi.tracks.length);
+                
+                midi.tracks.forEach((track, trackIndex) => {
+                    console.log(`Track ${trackIndex}: "${track.name}" - ${track.notes.length} notes`);
+                    track.notes.forEach(note => {
+                        const keyIndex = midiNoteToKeyIndex[note.midi];
+                        if (keyIndex !== undefined) {
+                            notes.push({
+                                time: note.time,
+                                keyIndex: keyIndex,
+                                midiNote: note.midi
+                            });
+                        } else {
+                            console.warn(`⚠️ Note out of 88-key range: MIDI ${note.midi}`);
+                        }
+                    });
+                });
+                
+                notes.sort((a, b) => a.time - b.time);
+                console.log(`✓ Total notes: ${notes.length}`);
+                console.log('First 5 notes:');
+                notes.slice(0, 5).forEach((note, i) => {
+                    const key = pianoKeys[note.keyIndex];
+                    console.log(`  ${i+1}. Time: ${note.time.toFixed(2)}s | MIDI: ${note.midiNote} | Key: ${key.noteName}${key.octave} | Index: ${note.keyIndex}`);
+                });
+                console.log('==========================================');
+                return notes;
+            } catch (error) {
+                console.error('MIDI error:', error);
+                throw error;
+            }
+        }
+
+        let scheduledTimeouts = []; // Track all scheduled sounds
+
+        function playMIDI() {
+            if (!midiNotes || midiNotes.length === 0) return;
+            midiMode = true;
+            gameRunning = true;
+            gamePaused = false;
+            
+            // Clear any previously scheduled sounds
+            scheduledTimeouts.forEach(timeout => clearTimeout(timeout));
+            scheduledTimeouts = [];
+            
+            // Resume audio context in case it was suspended (prevents sound stopping)
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            // Find the first note's time to calculate needed delay
+            const firstNoteTime = midiNotes[0]?.time || 0;
+            const visualFallTime = 2.0; // 2 seconds - time notes need to visually fall to piano
+            
+            // If first note is too early (less than 2 seconds), add delay
+            let startDelay = 0;
+            if (firstNoteTime < visualFallTime) {
+                startDelay = visualFallTime - firstNoteTime;
+                console.log(`⏱️ Adding ${startDelay.toFixed(2)}s delay - first note at ${firstNoteTime.toFixed(2)}s`);
+            }
+            
+            // Start the clock, potentially in the future if we need delay
+            midiStartTime = Date.now() + (startDelay * 1000);
+            currentMidiIndex = 0;
+            
+            console.log('🎵 MIDI Playback started');
+            
+            // Store note elements for collision detection
+            const activeNotes = new Map();
+            
+            function scheduleMIDINotes() {
+                if (!gameRunning || gamePaused || currentMidiIndex >= midiNotes.length) {
+                    if (currentMidiIndex >= midiNotes.length) {
+                        setTimeout(() => {
+                            gameRunning = false;
+                            midiMode = false;
+                            document.getElementById('startBtn').textContent = 'PLAY SONG';
+                        }, 2000);
+                    }
+                    if (gameRunning && !gamePaused) requestAnimationFrame(scheduleMIDINotes);
+                    return;
+                }
+                
+                const currentTime = (Date.now() - midiStartTime) / 1000;
+                let spawned = 0;
+                
+                while (currentMidiIndex < midiNotes.length && spawned < 3) {
+                    const note = midiNotes[currentMidiIndex];
+                    const spawnTime = note.time - (noteSpeed / 1000);
+                    
+                    if (spawnTime <= currentTime) {
+                        const noteElement = spawnNote(note.keyIndex);
+                        
+                        // Track this note for collision detection
+                        const noteId = `${note.keyIndex}-${note.time}-${currentMidiIndex}`;
+                        activeNotes.set(noteId, {
+                            element: noteElement,
+                            keyIndex: note.keyIndex,
+                            playTime: note.time,
+                            played: false
+                        });
+                        
+                        currentMidiIndex++;
+                        spawned++;
+                    } else {
+                        break;
+                    }
+                }
+                
+                // Check collision for all active notes
+                const pianoTop = window.innerHeight - 200;
+                activeNotes.forEach((noteData, noteId) => {
+                    if (!noteData.played && noteData.element && noteData.element.parentNode) {
+                        const rect = noteData.element.getBoundingClientRect();
+                        
+                        // If note bottom has reached piano top
+                        if (rect.bottom >= pianoTop) {
+                            noteData.played = true;
+                            const key = pianoKeys[noteData.keyIndex];
+                            console.log(`♪ ${key.noteName}${key.octave} (visual collision)`);
+                            handleKeyPress(noteData.keyIndex, true);
+                            setTimeout(() => activeNotes.delete(noteId), 500);
+                        }
+                    } else if (!noteData.element || !noteData.element.parentNode) {
+                        activeNotes.delete(noteId);
+                    }
+                });
+                
+                requestAnimationFrame(scheduleMIDINotes);
+            }
+            scheduleMIDINotes();
+        }
+
+        document.getElementById('uploadBtn').addEventListener('click', () => {
+            document.getElementById('midiFile').click();
+        });
+
+        document.getElementById('midiFile').addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('songInfo').textContent = 'Loading...';
+                const reader = new FileReader();
+                reader.onload = event => {
+                    try {
+                        midiNotes = parseMIDI(event.target.result);
+                        document.getElementById('songInfo').textContent = `Loaded: ${file.name} (${midiNotes.length} notes)`;
+                        document.getElementById('startBtn').textContent = 'PLAY SONG';
+                    } catch (error) {
+                        document.getElementById('songInfo').textContent = 'Error loading file';
+                        alert('Error: ' + error.message);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            if (!gameRunning) {
+                gameRunning = true;
+                gamePaused = false;
+                score = 0;
+                combo = 0;
+                document.getElementById('score').textContent = score;
+                document.getElementById('combo').textContent = combo;
+                
+                // Clear all scheduled timeouts from previous play
+                scheduledTimeouts.forEach(timeout => clearTimeout(timeout));
+                scheduledTimeouts = [];
+                
+                lanes.forEach(lane => { if (lane) lane.querySelectorAll('.note').forEach(n => n.remove()); });
+
+                if (midiNotes && midiNotes.length > 0) {
+                    playMIDI();
+                    document.getElementById('startBtn').textContent = 'STOP';
+                } else {
+                    document.getElementById('startBtn').textContent = 'RESTART';
+                    midiMode = false;
+                    spawnTimer = setInterval(spawnNote, spawnInterval);
+                }
+            } else {
+                clearInterval(spawnTimer);
+                
+                // Clear all scheduled timeouts when stopping
+                scheduledTimeouts.forEach(timeout => clearTimeout(timeout));
+                scheduledTimeouts = [];
+                
+                lanes.forEach(lane => { if (lane) lane.querySelectorAll('.note').forEach(n => n.remove()); });
+                gameRunning = false;
+                midiMode = false;
+                document.getElementById('startBtn').textContent = midiNotes && midiNotes.length > 0 ? 'PLAY SONG' : 'START';
+            }
+        });
+
+        document.getElementById('pauseBtn').addEventListener('click', () => {
+            if (gameRunning) {
+                if (!gamePaused) {
+                    // Pausing - save the current playback position
+                    gamePaused = true;
+                    const currentPlaybackTime = (Date.now() - midiStartTime) / 1000;
+                    window.pausedAt = currentPlaybackTime;
+                } else {
+                    // Resuming - adjust start time to continue from where we paused
+                    gamePaused = false;
+                    if (midiMode && window.pausedAt !== undefined) {
+                        midiStartTime = Date.now() - (window.pausedAt * 1000);
+                    }
+                }
+                
+                document.getElementById('pauseBtn').textContent = gamePaused ? 'RESUME' : 'PAUSE';
+                
+                document.querySelectorAll('.note').forEach(note => {
+                    note.style.animationPlayState = gamePaused ? 'paused' : 'running';
+                    note.querySelectorAll('.sparkle').forEach(s => s.style.animationPlayState = gamePaused ? 'paused' : 'running');
+                });
+            }
+        });
+
+        window.addEventListener('load', () => {
+            initPiano();
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('app').classList.add('loaded');
+            }, 500);
+        });
+    </script>
+</body>
+</html>
